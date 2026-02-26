@@ -2,8 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:school_management_system/dashboard/student_dashboard.dart';
-import 'package:shared_preferences/shared_preferences.dart'; 
 import 'package:school_management_system/authentication_screens/signup_screen.dart';
+import 'package:school_management_system/services/auth_service.dart';
+import 'package:school_management_system/services/api_service.dart';
 
 class SigninScreen extends StatefulWidget {
   const SigninScreen({super.key});
@@ -17,15 +18,54 @@ class _SigninScreenState extends State<SigninScreen> {
   final TextEditingController password = TextEditingController();
   bool rememberMe = false;
   bool isPasswordVisible = false;
-  
-  void saveLogin() async {
-    final sp = await SharedPreferences.getInstance();
-    if (rememberMe) {
-      await sp.setBool('isLoggedIn', true);
-      await sp.setString('userID', userID.text.trim()); 
-    } else {
-      await sp.setBool('isLoggedIn', false);
+  bool isLoading = false;
+
+  final AuthService _authService = AuthService();
+
+  Future<void> _handleLogin() async {
+    final userName = userID.text.trim();
+    final pass = password.text.trim();
+
+    if (userName.isEmpty || pass.isEmpty) {
+      _showSnackBar("Please complete all required fields.", isError: true);
+      return;
     }
+
+    setState(() => isLoading = true);
+
+    try {
+      await _authService.login(userName, pass);
+
+      if (!mounted) return;
+
+      _showSnackBar("Login Successful!", isError: false);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const StudentDashboard()),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.message, isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar("Login failed. Please try again.", isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  void _showSnackBar(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError
+            ? Theme.of(context).colorScheme.error
+            : Colors.blue,
+      ),
+    );
   }
 
   @override
@@ -58,11 +98,12 @@ class _SigninScreenState extends State<SigninScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Logo/Icon
-                    // SCHOOL LOGO IMAGES
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(
@@ -87,7 +128,9 @@ class _SigninScreenState extends State<SigninScreen> {
                       "Sign in to continue",
                       style: TextStyle(
                         fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withOpacity(0.6),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -99,7 +142,7 @@ class _SigninScreenState extends State<SigninScreen> {
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                       decoration: InputDecoration(
-                        labelText: "User ID",
+                        labelText: "User Name",
                         labelStyle: TextStyle(
                           color: Theme.of(context).colorScheme.primary,
                         ),
@@ -154,7 +197,9 @@ class _SigninScreenState extends State<SigninScreen> {
                             isPasswordVisible
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.6),
                           ),
                           onPressed: () {
                             setState(() {
@@ -198,7 +243,6 @@ class _SigninScreenState extends State<SigninScreen> {
                             });
                           },
                           activeColor: Theme.of(context).colorScheme.primary,
-                          
                         ),
                         Text(
                           "Remember me",
@@ -227,53 +271,35 @@ class _SigninScreenState extends State<SigninScreen> {
                       height: 56,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                           elevation: 2,
-                          shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                        ),
-                        onPressed: () async {
-                          final userID_ = userID.text.trim();
-                          final password_ = password.text.trim();
-
-                          if (userID_.isEmpty || password_.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text("Please complete all required fields."),
-                                backgroundColor: Theme.of(context).colorScheme.error,
-                              ),
-                            );
-                            return;
-                          }
-
-                          saveLogin();
-                          userID.clear();
-                          password.clear();
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text("Login Successful!"),
-                              backgroundColor: Colors.blue,
-                            ),
-                          );
-
-                          Navigator.pushReplacement(
+                          shadowColor: Theme.of(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => const StudentDashboard(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          "Login",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          ).colorScheme.primary.withOpacity(0.3),
                         ),
+                        onPressed: isLoading ? null : _handleLogin,
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Text(
+                                "Login",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -285,7 +311,9 @@ class _SigninScreenState extends State<SigninScreen> {
                         Text(
                           "Don't have an account?",
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.7),
                           ),
                         ),
                         TextButton(

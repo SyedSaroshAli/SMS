@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:school_management_system/authentication_screens/signin.dart';
+import 'package:school_management_system/services/auth_service.dart';
+import 'package:school_management_system/services/api_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -11,13 +13,91 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final TextEditingController userID = TextEditingController();
-  final TextEditingController name = TextEditingController();
-  final TextEditingController password = TextEditingController();
-  final TextEditingController confirmPassword = TextEditingController();
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController fatherNameController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
 
   bool isPasswordVisible = false;
   bool isConfPasswordVisible = false;
+  bool isLoading = false;
+
+  final AuthService _authService = AuthService();
+
+  Future<void> _handleSignup() async {
+    final name = nameController.text.trim();
+    final fatherName = fatherNameController.text.trim();
+    final phone = phoneController.text.trim();
+    final email = emailController.text.trim();
+    final pass = passwordController.text;
+    final confirm = confirmPasswordController.text;
+
+    if (name.isEmpty || pass.isEmpty || confirm.isEmpty) {
+      _showSnackBar("Please complete all required fields.", isError: true);
+      return;
+    }
+
+    if (pass != confirm) {
+      _showSnackBar("Passwords do not match", isError: true);
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      await _authService.register({
+        'name': name,
+        'father_Name': fatherName,
+        'phone': phone,
+        'email': email,
+        'password': pass,
+        // Defaults for fields the simple form doesn't collect
+        'dob': '2000-01-01',
+        'admission_Date': DateTime.now().toIso8601String(),
+        'dept_Id': 1,
+        'class_Id': 1,
+        'father_Phone': '',
+        'cnic': '',
+        'address': '',
+        'gender_Desc': '',
+        'section': '',
+        'year': DateTime.now().year.toString(),
+      });
+
+      if (!mounted) return;
+
+      _showSnackBar("Signup successful!", isError: false);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const SigninScreen()),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _showSnackBar(e.message, isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar("Signup failed. Please try again.", isError: true);
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  void _showSnackBar(String message, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError
+            ? Theme.of(context).colorScheme.error
+            : Colors.blue,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,89 +166,43 @@ class _SignupScreenState extends State<SignupScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // User ID Field
-                    TextField(
-                      controller: userID,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: "User ID",
-                        labelStyle: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.badge_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
                     // Name Field
-                    TextField(
-                      controller: name,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: "Full Name",
-                        labelStyle: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.person_outline,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
-                      ),
+                    _buildTextField(
+                      nameController,
+                      "Full Name",
+                      Icons.person_outline,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
+
+                    // Father's Name Field
+                    _buildTextField(
+                      fatherNameController,
+                      "Father's Name",
+                      Icons.people_outline,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Phone Field
+                    _buildTextField(
+                      phoneController,
+                      "Phone Number",
+                      Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Email Field
+                    _buildTextField(
+                      emailController,
+                      "Email",
+                      Icons.email_outlined,
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
 
                     // Password Field
                     TextField(
-                      controller: password,
+                      controller: passwordController,
                       obscureText: !isPasswordVisible,
                       obscuringCharacter: "•",
                       style: TextStyle(
@@ -192,17 +226,12 @@ class _SignupScreenState extends State<SignupScreen> {
                               context,
                             ).colorScheme.onSurface.withOpacity(0.6),
                           ),
-                          onPressed: () {
-                            setState(() {
-                              isPasswordVisible = !isPasswordVisible;
-                            });
-                          },
+                          onPressed: () => setState(
+                            () => isPasswordVisible = !isPasswordVisible,
+                          ),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -221,11 +250,11 @@ class _SignupScreenState extends State<SignupScreen> {
                         fillColor: Theme.of(context).colorScheme.surface,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
                     // Confirm Password Field
                     TextField(
-                      controller: confirmPassword,
+                      controller: confirmPasswordController,
                       obscureText: !isConfPasswordVisible,
                       obscuringCharacter: "•",
                       style: TextStyle(
@@ -249,17 +278,13 @@ class _SignupScreenState extends State<SignupScreen> {
                               context,
                             ).colorScheme.onSurface.withOpacity(0.6),
                           ),
-                          onPressed: () {
-                            setState(() {
-                              isConfPasswordVisible = !isConfPasswordVisible;
-                            });
-                          },
+                          onPressed: () => setState(
+                            () =>
+                                isConfPasswordVisible = !isConfPasswordVisible,
+                          ),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).dividerColor,
-                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -298,67 +323,23 @@ class _SignupScreenState extends State<SignupScreen> {
                             context,
                           ).colorScheme.primary.withOpacity(0.3),
                         ),
-                        onPressed: () {
-                          final userID_ = userID.text.trim();
-                          final name_ = name.text.trim();
-                          final password_ = password.text;
-                          final confirm_ = confirmPassword.text;
-
-                          if (userID_.isEmpty ||
-                              name_.isEmpty ||
-                              password_.isEmpty ||
-                              confirm_.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text(
-                                  "Please complete all required fields.",
+                        onPressed: isLoading ? null : _handleSignup,
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
                                 ),
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.error,
+                              )
+                            : const Text(
+                                "Sign Up",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            );
-                            return;
-                          }
-
-                          if (password_ != confirm_) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text("Passwords do not match"),
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.error,
-                              ),
-                            );
-                            return;
-                          }
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text("Signup successful!"),
-                              backgroundColor: Colors.blue,
-                            ),
-                          );
-
-                          userID.clear();
-                          name.clear();
-                          password.clear();
-                          confirmPassword.clear();
-
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SigninScreen(),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          "Sign Up",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -400,6 +381,38 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Theme.of(context).colorScheme.primary),
+        prefixIcon: Icon(icon, color: Theme.of(context).colorScheme.primary),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 2,
+          ),
+        ),
+        filled: true,
+        fillColor: Theme.of(context).colorScheme.surface,
       ),
     );
   }
